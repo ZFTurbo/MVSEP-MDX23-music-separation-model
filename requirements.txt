@@ -1,0 +1,8 @@
+numpy
+soundfile
+scipy
+torch>=1.8.1
+tqdm
+librosa
+demucs
+onnxruntime-gpu
