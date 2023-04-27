@@ -397,6 +397,7 @@ def predict_with_model(options):
             print(result[instrum].shape)
             output_name = os.path.splitext(os.path.basename(input_audio))[0] + '_{}.wav'.format(instrum)
             sf.write(output_folder + '/' + output_name, result[instrum], sample_rates[instrum], subtype='FLOAT')
+            print('File created: {}'.format(output_folder + '/' + output_name))
 
 
 def md5(fname):
@@ -422,6 +423,7 @@ if __name__ == '__main__':
         print('{}: {}'.format(el, options[el]))
     predict_with_model(options)
     print('Time: {:.0f} sec'.format(time() - start_time))
+    print('Presented by https://mvsep.com')
 
 
 """
