@@ -4,7 +4,7 @@ __author__ = 'https://github.com/ZFTurbo/'
 if __name__ == '__main__':
     import os
 
-    gpu_use = "0"
+    gpu_use = "1"
     print('GPU use: {}'.format(gpu_use))
     os.environ["CUDA_VISIBLE_DEVICES"] = "{}".format(gpu_use)
 
@@ -46,7 +46,8 @@ class Conv_TDF_net_trim_model(nn.Module):
 
     def stft(self, x):
         x = x.reshape([-1, self.chunk_size])
-        x = torch.stft(x, n_fft=self.n_fft, hop_length=self.hop, window=self.window, center=True)
+        x = torch.stft(x, n_fft=self.n_fft, hop_length=self.hop, window=self.window, center=True, return_complex=True)
+        x = torch.view_as_real(x)
         x = x.permute([0, 3, 1, 2])
         x = x.reshape([-1, 2, 2, self.n_bins, self.dim_t]).reshape([-1, self.dim_c, self.n_bins, self.dim_t])
         return x[:, :, :self.dim_f]
@@ -54,11 +55,12 @@ class Conv_TDF_net_trim_model(nn.Module):
     def istft(self, x, freq_pad=None):
         freq_pad = self.freq_pad.repeat([x.shape[0], 1, 1, 1]) if freq_pad is None else freq_pad
         x = torch.cat([x, freq_pad], -2)
-        c = self.dim_c * 2 if self.target_name == '*' else 2
-        x = x.reshape([-1, c, 2, self.n_bins, self.dim_t]).reshape([-1, 2, self.n_bins, self.dim_t])
+        x = x.reshape([-1, 2, 2, self.n_bins, self.dim_t]).reshape([-1, 2, self.n_bins, self.dim_t])
         x = x.permute([0, 2, 3, 1])
+        x = x.contiguous()
+        x = torch.view_as_complex(x)
         x = torch.istft(x, n_fft=self.n_fft, hop_length=self.hop, window=self.window, center=True)
-        return x.reshape([-1, c, self.chunk_size])
+        return x.reshape([-1, 2, self.chunk_size])
 
     def forward(self, x):
         x = self.first_conv(x)
@@ -173,9 +175,13 @@ class EnsembleDemucsMDXMusicSeparationModel:
             options - user options
         """
 
-        device = 'cuda:0'
+        if torch.cuda.is_available():
+            device = 'cuda:0'
+        else:
+            device = 'cpu'
         if options['cpu']:
             device = 'cpu'
+        print('Use device: {}'.format(device))
         self.overlap_large = float(options['overlap_large'])
         self.overlap_small = float(options['overlap_small'])
         if self.overlap_large > 0.99:
@@ -262,7 +268,14 @@ class EnsembleDemucsMDXMusicSeparationModel:
         """ Will be used by the evaluator to provide logs, DO NOT CHANGE """
         raise NameError(msg)
     
-    def separate_music_file(self, mixed_sound_array, sample_rate):
+    def separate_music_file(
+            self,
+            mixed_sound_array,
+            sample_rate,
+            update_percent_func=None,
+            current_file_number=0,
+            total_files=0,
+    ):
         """
         Implements the sound separation for a single sound file
         Inputs: Outputs from soundfile.read('mixture.wav')
@@ -273,6 +286,8 @@ class EnsembleDemucsMDXMusicSeparationModel:
             separated_music_arrays: Dictionary numpy array of each separated instrument
             output_sample_rates: Dictionary of sample rates separated sequence
         """
+
+        print('Update percent func: {}'.format(update_percent_func))
 
         input_length = len(mixed_sound_array)
         separated_music_arrays = {}
@@ -290,9 +305,17 @@ class EnsembleDemucsMDXMusicSeparationModel:
         overlap = overlap_large
         vocals_demics = apply_model(model, audio, shifts=shifts, overlap=overlap)[0][3].cpu().numpy()
 
+        if update_percent_func is not None:
+            val = 100 * (current_file_number + 0.15) / total_files
+            update_percent_func(int(val))
+
         overlap = overlap_large
         sources = demix_full(mixed_sound_array.T, self.device, self.chunk_size, self.mdx_models, self.infer_session, overlap=overlap)
         vocals_mdxb = sources[0]
+
+        if update_percent_func is not None:
+            val = 100 * (current_file_number + 0.30) / total_files
+            update_percent_func(int(val))
 
         # Ensemble vocals for MDX and Demics
         vocals = (6 * vocals_mdxb.T + 1 * vocals_demics.T) / 7
@@ -318,6 +341,11 @@ class EnsembleDemucsMDXMusicSeparationModel:
                 shifts = 1
                 overlap = overlap_large
             out = apply_model(model, audio, shifts=shifts, overlap=overlap)[0].cpu().numpy()
+
+            if update_percent_func is not None:
+                val = 100 * (current_file_number + 0.45 + i * 0.15) / total_files
+                update_percent_func(int(val))
+
             if i == 2:
                 # ['drums', 'bass', 'other', 'vocals', 'guitar', 'piano']
                 out[2] = out[2] + out[4] + out[5]
@@ -374,6 +402,10 @@ class EnsembleDemucsMDXMusicSeparationModel:
         separated_music_arrays['drums'] = mixed_sound_array - vocals.copy() - bass - other
         separated_music_arrays['bass'] = mixed_sound_array - vocals.copy() - drums - other
 
+        if update_percent_func is not None:
+            val = 100 * (current_file_number + 0.95) / total_files
+            update_percent_func(int(val))
+
         return separated_music_arrays, output_sample_rates
 
 
@@ -388,16 +420,24 @@ def predict_with_model(options):
 
     model = EnsembleDemucsMDXMusicSeparationModel(options)
 
-    for input_audio in options['input_audio']:
+    update_percent_func = None
+    if 'update_percent_func' in options:
+        update_percent_func = options['update_percent_func']
+
+    for i, input_audio in enumerate(options['input_audio']):
         print('Go for: {}'.format(input_audio))
         audio, sr = librosa.load(input_audio, mono=False, sr=44100)
         print("Input audio: {} Sample rate: {}".format(audio.shape, sr))
-        result, sample_rates = model.separate_music_file(audio.T, sr)
+        result, sample_rates = model.separate_music_file(audio.T, sr, update_percent_func, i, len(options['input_audio']))
         for instrum in model.instruments:
             print(result[instrum].shape)
             output_name = os.path.splitext(os.path.basename(input_audio))[0] + '_{}.wav'.format(instrum)
             sf.write(output_folder + '/' + output_name, result[instrum], sample_rates[instrum], subtype='FLOAT')
             print('File created: {}'.format(output_folder + '/' + output_name))
+
+    if update_percent_func is not None:
+        val = 100
+        update_percent_func(int(val))
 
 
 def md5(fname):

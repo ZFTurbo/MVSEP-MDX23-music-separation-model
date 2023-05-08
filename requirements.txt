@@ -6,3 +6,4 @@ tqdm
 librosa
 demucs
 onnxruntime-gpu
+PyQt5
