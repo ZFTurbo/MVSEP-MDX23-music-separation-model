@@ -427,6 +427,8 @@ def predict_with_model(options):
     for i, input_audio in enumerate(options['input_audio']):
         print('Go for: {}'.format(input_audio))
         audio, sr = librosa.load(input_audio, mono=False, sr=44100)
+        if len(audio.shape) == 1:
+            audio = np.stack([audio, audio], axis=0)
         print("Input audio: {} Sample rate: {}".format(audio.shape, sr))
         result, sample_rates = model.separate_music_file(audio.T, sr, update_percent_func, i, len(options['input_audio']))
         for instrum in model.instruments:
