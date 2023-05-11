@@ -43,6 +43,52 @@ class Worker(QObject):
         self.progress.emit(percent)
 
 
+class Ui_Dialog(object):
+    def setupUi(self, Dialog):
+        global root
+
+        Dialog.setObjectName("Settings")
+        Dialog.resize(358, 426)
+
+        self.checkbox_cpu = QCheckBox("Use CPU?", Dialog)
+        self.checkbox_cpu.move(20, 20)
+        self.checkbox_cpu.resize(320, 40)
+
+        self.pushButton_cancel = QPushButton(Dialog)
+        self.pushButton_cancel.setObjectName("pushButton_cancel")
+        self.pushButton_cancel.move(20, 120)
+        self.pushButton_cancel.resize(320, 40)
+
+        self.pushButton_save = QPushButton(Dialog)
+        self.pushButton_save.setObjectName("pushButton_save")
+        self.pushButton_save.move(20, 320)
+        self.pushButton_save.resize(320, 40)
+
+        self.retranslateUi(Dialog)
+        QtCore.QMetaObject.connectSlotsByName(Dialog)
+        self.Dialog = Dialog
+
+        # connect the two functions
+        self.pushButton_save.clicked.connect(self.return_save)
+        self.pushButton_cancel.clicked.connect(self.return_cancel)
+
+    def retranslateUi(self, Dialog):
+        _translate = QtCore.QCoreApplication.translate
+        Dialog.setWindowTitle(_translate("Settings", "Settings"))
+        self.pushButton_cancel.setText(_translate("Settings", "Cancel"))
+        self.pushButton_save.setText(_translate("Settings", "Save settings"))
+
+    def return_save(self):
+        global root
+        print("save")
+        self.Dialog.close()
+
+    def return_cancel(self):
+        global root
+        print("cancel")
+        self.Dialog.close()
+
+
 class MyWidget(QWidget):
     def __init__(self):
         super().__init__()
@@ -87,8 +133,8 @@ class MyWidget(QWidget):
             'input_audio': root['input_files'],
             'output_folder': root['output_folder'],
             'cpu': False,
-            'overlap_large': 0.7,
-            'overlap_small': 0.8,
+            'overlap_large': 0.6,
+            'overlap_small': 0.5,
         }
 
         self.update_progress(0)
@@ -115,6 +161,13 @@ class MyWidget(QWidget):
     def update_progress(self, progress):
         global root
         root['progress_bar'].setValue(progress)
+
+    def open_settings(self):
+        global root
+        dialog = QDialog()
+        dialog.ui = Ui_Dialog()
+        dialog.ui.setupUi(dialog)
+        dialog.exec_()
 
 
 def dialog_select_input_files():
@@ -208,6 +261,13 @@ def create_dialog():
     button_finish.setFixedWidth(150)
     button_finish.move(200, 270)
     button_finish.setDisabled(True)
+
+    button_finish = QPushButton('⚙', w)
+    button_finish.clicked.connect(w.open_settings)
+    button_finish.setFixedHeight(35)
+    button_finish.setFixedWidth(35)
+    button_finish.move(495, 270)
+    button_finish.setDisabled(False)
 
     mvsep_link = QLabel(w)
     mvsep_link.setOpenExternalLinks(True)

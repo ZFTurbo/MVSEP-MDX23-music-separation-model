@@ -1,7 +1,7 @@
 # MVSEP-MDX23-music-separation-model
 Model for [Sound demixing challenge 2023: Music Demixing Track - MDX'23](https://www.aicrowd.com/challenges/sound-demixing-challenge-2023). Model perform separation of music into 4 stems "bass", "drums", "vocals", "other".
 
-It based on [Demucs4](https://github.com/facebookresearch/demucs), [MDX](https://github.com/kuielab/mdx-net) and some MDX weights from [Ultimate Vocal Remover](https://github.com/Anjok07/ultimatevocalremovergui). Brought to you by [MVSep.com](https://mvsep.com)
+It based on [Demucs4](https://github.com/facebookresearch/demucs), [MDX](https://github.com/kuielab/mdx-net) and some MDX weights from [Ultimate Vocal Remover](https://github.com/Anjok07/ultimatevocalremovergui) (thanks Kimberley Jensen for great high quality vocal models). Brought to you by [MVSep.com](https://mvsep.com).
 ## Usage
 
 ```
@@ -9,6 +9,8 @@ It based on [Demucs4](https://github.com/facebookresearch/demucs), [MDX](https:/
 ```
 
 With this command audios with names "mixture1.wav" and "mixture2.wav" will be processed and results will be stored in `./result/` folder in WAV format.
+
+**Note**: By default inference requires at least 11 GB of video memory. If you have less memory you can use CPU (`--cpu`) or use single ONNX (`--single_onnx`). Also reduce of chunk size can help (`--chunk_size 200000`).
 
 ## Quality comparison
 
