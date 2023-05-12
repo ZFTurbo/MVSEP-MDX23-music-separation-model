@@ -174,6 +174,7 @@ class EnsembleDemucsMDXMusicSeparationModel:
         """
             options - user options
         """
+        # print(options)
 
         if torch.cuda.is_available():
             device = 'cuda:0'

@@ -4,7 +4,7 @@ __author__ = 'Roman Solovyev (ZFTurbo), IPPM RAS'
 if __name__ == '__main__':
     import os
 
-    gpu_use = "0"
+    gpu_use = "1"
     print('GPU use: {}'.format(gpu_use))
     os.environ["CUDA_VISIBLE_DEVICES"] = "{}".format(gpu_use)
 
@@ -48,21 +48,29 @@ class Ui_Dialog(object):
         global root
 
         Dialog.setObjectName("Settings")
-        Dialog.resize(358, 426)
+        Dialog.resize(370, 180)
 
-        self.checkbox_cpu = QCheckBox("Use CPU?", Dialog)
-        self.checkbox_cpu.move(20, 20)
+        self.checkbox_cpu = QCheckBox("Use CPU instead of GPU?", Dialog)
+        self.checkbox_cpu.move(30, 10)
         self.checkbox_cpu.resize(320, 40)
+        if root['cpu']:
+            self.checkbox_cpu.setChecked(True)
 
-        self.pushButton_cancel = QPushButton(Dialog)
-        self.pushButton_cancel.setObjectName("pushButton_cancel")
-        self.pushButton_cancel.move(20, 120)
-        self.pushButton_cancel.resize(320, 40)
+        self.checkbox_single_onnx = QCheckBox("Use single ONNX?", Dialog)
+        self.checkbox_single_onnx.move(30, 40)
+        self.checkbox_single_onnx.resize(320, 40)
+        if root['single_onnx']:
+            self.checkbox_single_onnx.setChecked(True)
 
         self.pushButton_save = QPushButton(Dialog)
         self.pushButton_save.setObjectName("pushButton_save")
-        self.pushButton_save.move(20, 320)
-        self.pushButton_save.resize(320, 40)
+        self.pushButton_save.move(30, 120)
+        self.pushButton_save.resize(150, 35)
+
+        self.pushButton_cancel = QPushButton(Dialog)
+        self.pushButton_cancel.setObjectName("pushButton_cancel")
+        self.pushButton_cancel.move(190, 120)
+        self.pushButton_cancel.resize(150, 35)
 
         self.retranslateUi(Dialog)
         QtCore.QMetaObject.connectSlotsByName(Dialog)
@@ -80,12 +88,14 @@ class Ui_Dialog(object):
 
     def return_save(self):
         global root
-        print("save")
+        # print("save")
+        root['cpu'] = self.checkbox_cpu.isChecked()
+        root['single_onnx'] = self.checkbox_single_onnx.isChecked()
         self.Dialog.close()
 
     def return_cancel(self):
         global root
-        print("cancel")
+        # print("cancel")
         self.Dialog.close()
 
 
@@ -120,7 +130,7 @@ class MyWidget(QWidget):
     def execute_long_task(self):
         global root
 
-        if len(root['input_files']) == 0 and 0:
+        if len(root['input_files']) == 0 and 1:
             QMessageBox.about(root['w'], "Error", "No input files specified!")
             return
 
@@ -132,7 +142,8 @@ class MyWidget(QWidget):
         options = {
             'input_audio': root['input_files'],
             'output_folder': root['output_folder'],
-            'cpu': False,
+            'cpu': root['cpu'],
+            'single_onnx': root['single_onnx'],
             'overlap_large': 0.6,
             'overlap_small': 0.5,
         }
@@ -208,6 +219,8 @@ def create_dialog():
 
     root['input_files'] = []
     root['output_folder'] = os.path.dirname(os.path.abspath(__file__)) + '/results/'
+    root['cpu'] = False
+    root['single_onnx'] = False
 
     button_select_input_files = QPushButton(w)
     button_select_input_files.setText("Input audio files")
@@ -262,12 +275,12 @@ def create_dialog():
     button_finish.move(200, 270)
     button_finish.setDisabled(True)
 
-    button_finish = QPushButton('⚙', w)
-    button_finish.clicked.connect(w.open_settings)
-    button_finish.setFixedHeight(35)
-    button_finish.setFixedWidth(35)
-    button_finish.move(495, 270)
-    button_finish.setDisabled(False)
+    button_settings = QPushButton('⚙', w)
+    button_settings.clicked.connect(w.open_settings)
+    button_settings.setFixedHeight(35)
+    button_settings.setFixedWidth(35)
+    button_settings.move(495, 270)
+    button_settings.setDisabled(False)
 
     mvsep_link = QLabel(w)
     mvsep_link.setOpenExternalLinks(True)
@@ -282,6 +295,7 @@ def create_dialog():
     root['output_folder_line_edit'] = output_folder_line_edit
     root['button_start'] = button_start
     root['button_finish'] = button_finish
+    root['button_settings'] = button_settings
 
     # w.showMaximized()
     w.show()
