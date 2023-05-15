@@ -38,4 +38,15 @@ Quality comparison with best separation models performed on [MultiSong Dataset](
 
 ## Citation
 
-TBD
+* [arxiv paper](https://arxiv.org/abs/2305.07489)
+
+```
+@misc{solovyev2023benchmarks,
+      title={Benchmarks and leaderboards for sound demixing tasks}, 
+      author={Roman Solovyev and Alexander Stempkovskiy and Tatiana Habruseva},
+      year={2023},
+      eprint={2305.07489},
+      archivePrefix={arXiv},
+      primaryClass={cs.SD}
+}
+```
