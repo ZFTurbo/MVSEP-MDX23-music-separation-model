@@ -4,7 +4,7 @@ __author__ = 'https://github.com/ZFTurbo/'
 if __name__ == '__main__':
     import os
 
-    gpu_use = "0"
+    gpu_use = "1"
     print('GPU use: {}'.format(gpu_use))
     os.environ["CUDA_VISIBLE_DEVICES"] = "{}".format(gpu_use)
 
@@ -807,10 +807,16 @@ def predict_with_model(options):
             sf.write(output_folder + '/' + output_name, result[instrum], sample_rates[instrum], subtype='FLOAT')
             print('File created: {}'.format(output_folder + '/' + output_name))
 
-        # instrumental part
+        # instrumental part 1
         inst = audio.T - result['vocals']
         output_name = os.path.splitext(os.path.basename(input_audio))[0] + '_{}.wav'.format('instrum')
         sf.write(output_folder + '/' + output_name, inst, sr, subtype='FLOAT')
+        print('File created: {}'.format(output_folder + '/' + output_name))
+
+        # instrumental part 2
+        inst2 = result['bass'] + result['drums'] + result['other']
+        output_name = os.path.splitext(os.path.basename(input_audio))[0] + '_{}.wav'.format('instrum2')
+        sf.write(output_folder + '/' + output_name, inst2, sr, subtype='FLOAT')
         print('File created: {}'.format(output_folder + '/' + output_name))
 
     if update_percent_func is not None:
