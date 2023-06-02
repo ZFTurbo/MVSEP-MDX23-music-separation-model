@@ -774,6 +774,7 @@ class EnsembleDemucsMDXMusicSeparationModelLowGPU:
 
 
 def predict_with_model(options):
+    output_files = []
     for input_audio in options['input_audio']:
         if not os.path.isfile(input_audio):
             print('Error. No such file: {}. Please check path!'.format(input_audio))
@@ -805,19 +806,13 @@ def predict_with_model(options):
         for instrum in model.instruments:
             output_name = os.path.splitext(os.path.basename(input_audio))[0] + '_{}.wav'.format(instrum)
             sf.write(output_folder + '/' + output_name, result[instrum], sample_rates[instrum], subtype='FLOAT')
-            print('File created: {}'.format(output_folder + '/' + output_name))
+            output_files.append(output_folder + '/' + output_name)
 
-        # instrumental part 1
+        # instrumental part
         inst = audio.T - result['vocals']
         output_name = os.path.splitext(os.path.basename(input_audio))[0] + '_{}.wav'.format('instrum')
         sf.write(output_folder + '/' + output_name, inst, sr, subtype='FLOAT')
-        print('File created: {}'.format(output_folder + '/' + output_name))
-
-        # instrumental part 2
-        inst2 = result['bass'] + result['drums'] + result['other']
-        output_name = os.path.splitext(os.path.basename(input_audio))[0] + '_{}.wav'.format('instrum2')
-        sf.write(output_folder + '/' + output_name, inst2, sr, subtype='FLOAT')
-        print('File created: {}'.format(output_folder + '/' + output_name))
+        output_files.append(output_folder + '/' + output_name)
 
     if update_percent_func is not None:
         val = 100
@@ -832,19 +827,12 @@ def md5(fname):
     return hash_md5.hexdigest()
 
 
-if __name__ == '__main__':
+def main():
     start_time = time()
 
     m = argparse.ArgumentParser()
     m.add_argument("--input_audio", "-i", nargs='+', type=str, help="Input audio location. You can provide multiple files at once", required=True)
-    m.add_argument("--output_folder", "-r", type=str, help="Output audio folder", required=True)
-    m.add_argument("--cpu", action='store_true', help="Choose CPU instead of GPU for processing. Can be very slow.")
-    m.add_argument("--overlap_large", "-ol", type=float, help="Overlap of splited audio for light models. Closer to 1.0 - slower", required=False, default=0.6)
-    m.add_argument("--overlap_small", "-os", type=float, help="Overlap of splited audio for heavy models. Closer to 1.0 - slower", required=False, default=0.5)
-    m.add_argument("--single_onnx", action='store_true', help="Only use single ONNX model for vocals. Can be useful if you have not enough GPU memory.")
-    m.add_argument("--chunk_size", "-cz", type=int, help="Chunk size for ONNX models. Set lower to reduce GPU memory consumption. Default: 1000000", required=False, default=1000000)
-    m.add_argument("--large_gpu", action='store_true', help="It will store all models on GPU for faster processing of multiple audio files. Requires 11 and more GB of free GPU memory.")
-
+    ...
     options = m.parse_args().__dict__
     print("Options: ".format(options))
     for el in options:
@@ -852,6 +840,9 @@ if __name__ == '__main__':
     predict_with_model(options)
     print('Time: {:.0f} sec'.format(time() - start_time))
     print('Presented by https://mvsep.com')
+
+if __name__ == '__main__':
+    main()
 
 
 """
