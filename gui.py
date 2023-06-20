@@ -14,8 +14,10 @@ import numpy as np
 from PyQt5.QtCore import *
 from PyQt5 import QtCore
 from PyQt5.QtWidgets import *
+from PyQt5.QtGui import *
 import sys
-from inference import predict_with_model
+from inference import predict_with_model, __VERSION__
+import torch
 
 
 root = dict()
@@ -48,7 +50,7 @@ class Ui_Dialog(object):
         global root
 
         Dialog.setObjectName("Settings")
-        Dialog.resize(370, 180)
+        Dialog.resize(370, 320)
 
         self.checkbox_cpu = QCheckBox("Use CPU instead of GPU?", Dialog)
         self.checkbox_cpu.move(30, 10)
@@ -62,14 +64,70 @@ class Ui_Dialog(object):
         if root['single_onnx']:
             self.checkbox_single_onnx.setChecked(True)
 
+        self.checkbox_large_gpu = QCheckBox("Use large GPU?", Dialog)
+        self.checkbox_large_gpu.move(30, 70)
+        self.checkbox_large_gpu.resize(320, 40)
+        if root['large_gpu']:
+            self.checkbox_large_gpu.setChecked(True)
+
+        self.checkbox_kim_1 = QCheckBox("Use old Kim Vocal model?", Dialog)
+        self.checkbox_kim_1.move(30, 100)
+        self.checkbox_kim_1.resize(320, 40)
+        if root['use_kim_model_1']:
+            self.checkbox_kim_1.setChecked(True)
+
+        self.checkbox_only_vocals = QCheckBox("Generate only vocals/instrumental?", Dialog)
+        self.checkbox_only_vocals.move(30, 130)
+        self.checkbox_only_vocals.resize(320, 40)
+        if root['only_vocals']:
+            self.checkbox_only_vocals.setChecked(True)
+
+        self.chunk_size_label = QLabel(Dialog)
+        self.chunk_size_label.setText('Chunk size')
+        self.chunk_size_label.move(30, 160)
+        self.chunk_size_label.resize(320, 40)
+
+        self.chunk_size_valid = QIntValidator(bottom=100000, top=10000000)
+        self.chunk_size = QLineEdit(Dialog)
+        self.chunk_size.setFixedWidth(140)
+        self.chunk_size.move(130, 170)
+        self.chunk_size.setValidator(self.chunk_size_valid)
+        self.chunk_size.setText(str(root['chunk_size']))
+
+        self.overlap_large_label = QLabel(Dialog)
+        self.overlap_large_label.setText('Overlap large')
+        self.overlap_large_label.move(30, 190)
+        self.overlap_large_label.resize(320, 40)
+
+        self.overlap_large_valid = QDoubleValidator(bottom=0.001, top=0.999, decimals=10)
+        self.overlap_large_valid.setNotation(QDoubleValidator.Notation.StandardNotation)
+        self.overlap_large = QLineEdit(Dialog)
+        self.overlap_large.setFixedWidth(140)
+        self.overlap_large.move(130, 200)
+        self.overlap_large.setValidator(self.overlap_large_valid)
+        self.overlap_large.setText(str(root['overlap_large']))
+
+        self.overlap_small_label = QLabel(Dialog)
+        self.overlap_small_label.setText('Overlap small')
+        self.overlap_small_label.move(30, 220)
+        self.overlap_small_label.resize(320, 40)
+
+        self.overlap_small_valid = QDoubleValidator(0.001, 0.999, 10)
+        self.overlap_small_valid.setNotation(QDoubleValidator.Notation.StandardNotation)
+        self.overlap_small = QLineEdit(Dialog)
+        self.overlap_small.setFixedWidth(140)
+        self.overlap_small.move(130, 230)
+        self.overlap_small.setValidator(self.overlap_small_valid)
+        self.overlap_small.setText(str(root['overlap_small']))
+
         self.pushButton_save = QPushButton(Dialog)
         self.pushButton_save.setObjectName("pushButton_save")
-        self.pushButton_save.move(30, 120)
+        self.pushButton_save.move(30, 280)
         self.pushButton_save.resize(150, 35)
 
         self.pushButton_cancel = QPushButton(Dialog)
         self.pushButton_cancel.setObjectName("pushButton_cancel")
-        self.pushButton_cancel.move(190, 120)
+        self.pushButton_cancel.move(190, 280)
         self.pushButton_cancel.resize(150, 35)
 
         self.retranslateUi(Dialog)
@@ -91,6 +149,32 @@ class Ui_Dialog(object):
         # print("save")
         root['cpu'] = self.checkbox_cpu.isChecked()
         root['single_onnx'] = self.checkbox_single_onnx.isChecked()
+        root['large_gpu'] = self.checkbox_large_gpu.isChecked()
+        root['use_kim_model_1'] = self.checkbox_kim_1.isChecked()
+        root['only_vocals'] = self.checkbox_only_vocals.isChecked()
+
+        chunk_size_text = self.chunk_size.text()
+        state = self.chunk_size_valid.validate(chunk_size_text, 0)
+        if state[0] == QValidator.State.Acceptable:
+            root['chunk_size'] = chunk_size_text
+
+        overlap_large_text = self.overlap_large.text()
+        # locale problems... it wants comma instead of dot
+        if 0:
+            state = self.overlap_large_valid.validate(overlap_large_text, 0)
+            if state[0] == QValidator.State.Acceptable:
+                root['overlap_large'] = float(overlap_large_text)
+        else:
+            root['overlap_large'] = float(overlap_large_text)
+
+        overlap_small_text = self.overlap_small.text()
+        if 0:
+            state = self.overlap_small_valid.validate(overlap_small_text, 0)
+            if state[0] == QValidator.State.Acceptable:
+                root['overlap_small'] = float(overlap_small_text)
+        else:
+            root['overlap_small'] = float(overlap_small_text)
+
         self.Dialog.close()
 
     def return_cancel(self):
@@ -144,8 +228,12 @@ class MyWidget(QWidget):
             'output_folder': root['output_folder'],
             'cpu': root['cpu'],
             'single_onnx': root['single_onnx'],
-            'overlap_large': 0.6,
-            'overlap_small': 0.5,
+            'large_gpu': root['large_gpu'],
+            'chunk_size': root['chunk_size'],
+            'overlap_large': root['overlap_large'],
+            'overlap_small': root['overlap_small'],
+            'use_kim_model_1': root['use_kim_model_1'],
+            'only_vocals': root['only_vocals'],
         }
 
         self.update_progress(0)
@@ -220,7 +308,23 @@ def create_dialog():
     root['input_files'] = []
     root['output_folder'] = os.path.dirname(os.path.abspath(__file__)) + '/results/'
     root['cpu'] = False
+    root['large_gpu'] = False
     root['single_onnx'] = False
+    root['chunk_size'] = 1000000
+    root['overlap_large'] = 0.6
+    root['overlap_small'] = 0.5
+    root['use_kim_model_1'] = False
+    root['only_vocals'] = False
+
+    t = torch.cuda.get_device_properties(0).total_memory / (1024 * 1024 * 1024)
+    if t > 11.5:
+        print('You have enough GPU memory ({:.2f} GB), so we set fast GPU mode. You can change in settings!'.format(t))
+        root['large_gpu'] = True
+        root['single_onnx'] = False
+    elif t < 8:
+        root['large_gpu'] = False
+        root['single_onnx'] = True
+        root['chunk_size'] = 500000
 
     button_select_input_files = QPushButton(w)
     button_select_input_files.setText("Input audio files")
@@ -303,4 +407,5 @@ def create_dialog():
 
 
 if __name__ == '__main__':
+    print('Version: {}'.format(__VERSION__))
     create_dialog()

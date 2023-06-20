@@ -10,8 +10,21 @@ Model based on [Demucs4](https://github.com/facebookresearch/demucs), [MDX](http
 
 With this command audios with names "mixture1.wav" and "mixture2.wav" will be processed and results will be stored in `./results/` folder in WAV format.
 
-* **Note 1**: If you have not enough GPU memory you can use CPU (`--cpu`), but it will be slow. Additionally you can use single ONNX (`--single_onnx`), but it will decrease quality a little bit. Also reduce of chunk size can help (`--chunk_size 200000`).
-* **Note 2**: In current revision code requires less GPU memory, but it process multiple files slower. If you want old fast method use argument `--large_gpu`. It will require > 11 GB of GPU memory, but will work faster.  
+### All available keys
+* `--input_audio` - input audio location. You can provide multiple files at once. **Required**
+* `--output_folder` - output audio folder. **Required**
+* `--cpu` - choose CPU instead of GPU for processing. Can be very slow.
+* `--overlap_large` - overlap of splitted audio for light models. Closer to 1.0 - slower, but better quality. Default: 0.6.
+* `--overlap_small` - overlap of splitted audio for heavy models. Closer to 1.0 - slower, but better quality. Default: 0.5.
+* `--single_onnx` - only use single ONNX model for vocals. Can be useful if you have not enough GPU memory.
+* `--chunk_size` - chunk size for ONNX models. Set lower to reduce GPU memory consumption. Default: 1000000.
+* `--large_gpu` - it will store all models on GPU for faster processing of multiple audio files. Requires at least 11 GB of free GPU memory.
+* `--use_kim_model_1` - use first version of Kim model (as it was on contest).
+* `--only_vocals` - only create vocals and instrumental. Skip bass, drums, other. Processing will be faster.
+
+### Notes
+* If you have not enough GPU memory you can use CPU (`--cpu`), but it will be slow. Additionally you can use single ONNX (`--single_onnx`), but it will decrease quality a little bit. Also reduce of chunk size can help (`--chunk_size 200000`).
+* In current revision code requires less GPU memory, but it process multiple files slower. If you want old fast method use argument `--large_gpu`. It will require > 11 GB of GPU memory, but will work faster.  
 
 ## Quality comparison
 
@@ -35,6 +48,14 @@ Quality comparison with best separation models performed on [MultiSong Dataset](
 * Program will download all needed neural net models from internet at the first run.
 * GUI supports Drag & Drop of multiple files.
 * Progress bar available.
+
+## Changes
+
+### v1.0.1
+* Settings in GUI updated, now you can control all possible options
+* Kim vocal model updated from version 1 to version 2, you still can use version 1 using parameter `--use_kim_model_1`
+* Added possibility to generate only vocals/instrumental pair if you don't need bass, drums and other stems. Use parameter `--only_vocals`
+* Standalone program was updated. It has less size now. GUI will download torch/cuda on the first run. 
 
 ## Citation
 
