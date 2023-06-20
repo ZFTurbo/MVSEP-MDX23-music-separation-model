@@ -24,7 +24,8 @@ With this command audios with names "mixture1.wav" and "mixture2.wav" will be pr
 
 ### Notes
 * If you have not enough GPU memory you can use CPU (`--cpu`), but it will be slow. Additionally you can use single ONNX (`--single_onnx`), but it will decrease quality a little bit. Also reduce of chunk size can help (`--chunk_size 200000`).
-* In current revision code requires less GPU memory, but it process multiple files slower. If you want old fast method use argument `--large_gpu`. It will require > 11 GB of GPU memory, but will work faster.  
+* In current revision code requires less GPU memory, but it process multiple files slower. If you want old fast method use argument `--large_gpu`. It will require > 11 GB of GPU memory, but will work faster.
+* There is [Google.Collab version](https://colab.research.google.com/github/jarredou/MVSEP-MDX23-Colab_v2/blob/main/MVSep-MDX23-Colab.ipynb) of this code.  
 
 ## Quality comparison
 
@@ -44,7 +45,7 @@ Quality comparison with best separation models performed on [MultiSong Dataset](
 ![GUI Window](https://github.com/ZFTurbo/MVSEP-MDX23-music-separation-model/blob/main/images/MVSep-Window.png)
 
 * Script for GUI (based on PyQt5): [gui.py](gui.py).
-* You can download standalone program for Windows here: [zip1](https://github.com/ZFTurbo/MVSEP-MDX23-music-separation-model/releases/download/v1.0/MVSep-MDX23.zip.001), [zip2](https://github.com/ZFTurbo/MVSEP-MDX23-music-separation-model/releases/download/v1.0/MVSep-MDX23.zip.002). Unzip archives and to start program double click `run.bat`.
+* You can download [standalone program for Windows here](https://github.com/ZFTurbo/MVSEP-MDX23-music-separation-model/releases/download/v1.0.1/MVSep-MDX23_v1.0.1.zip) (~730 MB). Unzip archive and to start program double click `run.bat`. On first run it will download pytorch with CUDA support (~2.8 GB) and some Neural Net models.
 * Program will download all needed neural net models from internet at the first run.
 * GUI supports Drag & Drop of multiple files.
 * Progress bar available.
