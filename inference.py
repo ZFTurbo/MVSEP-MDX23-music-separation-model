@@ -25,6 +25,9 @@ import librosa
 import hashlib
 
 
+__VERSION__ = '1.0.1'
+
+
 class Conv_TDF_net_trim_model(nn.Module):
     def __init__(self, device, target_name, L, n_fft, hop=1024):
 
@@ -189,6 +192,16 @@ class EnsembleDemucsMDXMusicSeparationModel:
             if options['single_onnx']:
                 self.single_onnx = True
                 print('Use single vocal ONNX')
+
+        self.kim_model_1 = False
+        if 'use_kim_model_1' in options:
+            if options['use_kim_model_1']:
+                self.kim_model_1 = True
+        if self.kim_model_1:
+            print('Use Kim model 1')
+        else:
+            print('Use Kim model 2')
+
         self.overlap_large = float(options['overlap_large'])
         self.overlap_small = float(options['overlap_small'])
         if self.overlap_large > 0.99:
@@ -253,8 +266,12 @@ class EnsembleDemucsMDXMusicSeparationModel:
         # MDX-B model 1 initialization
         self.chunk_size = chunk_size
         self.mdx_models1 = get_models('tdf_extra', load=False, device=device, vocals_model_type=2)
-        model_path_onnx1 = model_folder + 'Kim_Vocal_1.onnx'
-        remote_url_onnx1 = 'https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/Kim_Vocal_1.onnx'
+        if self.kim_model_1:
+            model_path_onnx1 = model_folder + 'Kim_Vocal_1.onnx'
+            remote_url_onnx1 = 'https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/Kim_Vocal_1.onnx'
+        else:
+            model_path_onnx1 = model_folder + 'Kim_Vocal_2.onnx'
+            remote_url_onnx1 = 'https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/Kim_Vocal_2.onnx'
         if not os.path.isfile(model_path_onnx1):
             torch.hub.download_url_to_file(remote_url_onnx1, model_path_onnx1)
         print('Model path: {}'.format(model_path_onnx1))
@@ -301,6 +318,7 @@ class EnsembleDemucsMDXMusicSeparationModel:
             update_percent_func=None,
             current_file_number=0,
             total_files=0,
+            only_vocals=False,
     ):
         """
         Implements the sound separation for a single sound file
@@ -382,71 +400,72 @@ class EnsembleDemucsMDXMusicSeparationModel:
             weights = np.array([6, 1])
             vocals = (weights[0] * vocals_mdxb1.T + weights[1] * vocals_demucs.T) / weights.sum()
 
-        # Generate instrumental
-        instrum = mixed_sound_array - vocals
-
-        audio = np.expand_dims(instrum.T, axis=0)
-        audio = torch.from_numpy(audio).type('torch.FloatTensor').to(self.device)
-
-        all_outs = []
-        for i, model in enumerate(self.models):
-            if i == 0:
-                overlap = overlap_small
-            elif i > 0:
-                overlap = overlap_large
-            out = 0.5 * apply_model(model, audio, shifts=shifts, overlap=overlap)[0].cpu().numpy() \
-                  + 0.5 * -apply_model(model, -audio, shifts=shifts, overlap=overlap)[0].cpu().numpy()
-
-            if update_percent_func is not None:
-                val = 100 * (current_file_number + 0.50 + i * 0.10) / total_files
-                update_percent_func(int(val))
-
-            if i == 2:
-                # ['drums', 'bass', 'other', 'vocals', 'guitar', 'piano']
-                out[2] = out[2] + out[4] + out[5]
-                out = out[:4]
-
-            out[0] = self.weights_drums[i] * out[0]
-            out[1] = self.weights_bass[i] * out[1]
-            out[2] = self.weights_other[i] * out[2]
-            out[3] = self.weights_vocals[i] * out[3]
-
-            all_outs.append(out)
-        out = np.array(all_outs).sum(axis=0)
-        out[0] = out[0] / self.weights_drums.sum()
-        out[1] = out[1] / self.weights_bass.sum()
-        out[2] = out[2] / self.weights_other.sum()
-        out[3] = out[3] / self.weights_vocals.sum()
-
         # vocals
         separated_music_arrays['vocals'] = vocals
         output_sample_rates['vocals'] = sample_rate
 
-        # other
-        res = mixed_sound_array - vocals - out[0].T - out[1].T
-        res = np.clip(res, -1, 1)
-        separated_music_arrays['other'] = (2 * res + out[2].T) / 3.0
-        output_sample_rates['other'] = sample_rate
+        if not only_vocals:
+            # Generate instrumental
+            instrum = mixed_sound_array - vocals
 
-        # drums
-        res = mixed_sound_array - vocals - out[1].T - out[2].T
-        res = np.clip(res, -1, 1)
-        separated_music_arrays['drums'] = (res + 2 * out[0].T.copy()) / 3.0
-        output_sample_rates['drums'] = sample_rate
+            audio = np.expand_dims(instrum.T, axis=0)
+            audio = torch.from_numpy(audio).type('torch.FloatTensor').to(self.device)
 
-        # bass
-        res = mixed_sound_array - vocals - out[0].T - out[2].T
-        res = np.clip(res, -1, 1)
-        separated_music_arrays['bass'] = (res + 2 * out[1].T) / 3.0
-        output_sample_rates['bass'] = sample_rate
+            all_outs = []
+            for i, model in enumerate(self.models):
+                if i == 0:
+                    overlap = overlap_small
+                elif i > 0:
+                    overlap = overlap_large
+                out = 0.5 * apply_model(model, audio, shifts=shifts, overlap=overlap)[0].cpu().numpy() \
+                      + 0.5 * -apply_model(model, -audio, shifts=shifts, overlap=overlap)[0].cpu().numpy()
 
-        bass = separated_music_arrays['bass']
-        drums = separated_music_arrays['drums']
-        other = separated_music_arrays['other']
+                if update_percent_func is not None:
+                    val = 100 * (current_file_number + 0.50 + i * 0.10) / total_files
+                    update_percent_func(int(val))
 
-        separated_music_arrays['other'] = mixed_sound_array - vocals - bass - drums
-        separated_music_arrays['drums'] = mixed_sound_array - vocals - bass - other
-        separated_music_arrays['bass'] = mixed_sound_array - vocals - drums - other
+                if i == 2:
+                    # ['drums', 'bass', 'other', 'vocals', 'guitar', 'piano']
+                    out[2] = out[2] + out[4] + out[5]
+                    out = out[:4]
+
+                out[0] = self.weights_drums[i] * out[0]
+                out[1] = self.weights_bass[i] * out[1]
+                out[2] = self.weights_other[i] * out[2]
+                out[3] = self.weights_vocals[i] * out[3]
+
+                all_outs.append(out)
+            out = np.array(all_outs).sum(axis=0)
+            out[0] = out[0] / self.weights_drums.sum()
+            out[1] = out[1] / self.weights_bass.sum()
+            out[2] = out[2] / self.weights_other.sum()
+            out[3] = out[3] / self.weights_vocals.sum()
+
+            # other
+            res = mixed_sound_array - vocals - out[0].T - out[1].T
+            res = np.clip(res, -1, 1)
+            separated_music_arrays['other'] = (2 * res + out[2].T) / 3.0
+            output_sample_rates['other'] = sample_rate
+
+            # drums
+            res = mixed_sound_array - vocals - out[1].T - out[2].T
+            res = np.clip(res, -1, 1)
+            separated_music_arrays['drums'] = (res + 2 * out[0].T.copy()) / 3.0
+            output_sample_rates['drums'] = sample_rate
+
+            # bass
+            res = mixed_sound_array - vocals - out[0].T - out[2].T
+            res = np.clip(res, -1, 1)
+            separated_music_arrays['bass'] = (res + 2 * out[1].T) / 3.0
+            output_sample_rates['bass'] = sample_rate
+
+            bass = separated_music_arrays['bass']
+            drums = separated_music_arrays['drums']
+            other = separated_music_arrays['other']
+
+            separated_music_arrays['other'] = mixed_sound_array - vocals - bass - drums
+            separated_music_arrays['drums'] = mixed_sound_array - vocals - bass - other
+            separated_music_arrays['bass'] = mixed_sound_array - vocals - drums - other
 
         if update_percent_func is not None:
             val = 100 * (current_file_number + 0.95) / total_files
@@ -479,6 +498,16 @@ class EnsembleDemucsMDXMusicSeparationModelLowGPU:
             if options['single_onnx']:
                 self.single_onnx = True
                 print('Use single vocal ONNX')
+
+        self.kim_model_1 = False
+        if 'use_kim_model_1' in options:
+            if options['use_kim_model_1']:
+                self.kim_model_1 = True
+        if self.kim_model_1:
+            print('Use Kim model 1')
+        else:
+            print('Use Kim model 2')
+
         self.overlap_large = float(options['overlap_large'])
         self.overlap_small = float(options['overlap_small'])
         if self.overlap_large > 0.99:
@@ -523,6 +552,7 @@ class EnsembleDemucsMDXMusicSeparationModelLowGPU:
             update_percent_func=None,
             current_file_number=0,
             total_files=0,
+            only_vocals=False
     ):
         """
         Implements the sound separation for a single sound file
@@ -572,8 +602,12 @@ class EnsembleDemucsMDXMusicSeparationModelLowGPU:
 
         # MDX-B model 1 initialization
         mdx_models1 = get_models('tdf_extra', load=False, device=self.device, vocals_model_type=2)
-        model_path_onnx1 = model_folder + 'Kim_Vocal_1.onnx'
-        remote_url_onnx1 = 'https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/Kim_Vocal_1.onnx'
+        if self.kim_model_1:
+            model_path_onnx1 = model_folder + 'Kim_Vocal_1.onnx'
+            remote_url_onnx1 = 'https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/Kim_Vocal_1.onnx'
+        else:
+            model_path_onnx1 = model_folder + 'Kim_Vocal_2.onnx'
+            remote_url_onnx1 = 'https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/Kim_Vocal_2.onnx'
         if not os.path.isfile(model_path_onnx1):
             torch.hub.download_url_to_file(remote_url_onnx1, model_path_onnx1)
         print('Model path: {}'.format(model_path_onnx1))
@@ -782,6 +816,12 @@ def predict_with_model(options):
     if not os.path.isdir(output_folder):
         os.mkdir(output_folder)
 
+    only_vocals = False
+    if 'only_vocals' in options:
+        if options['only_vocals'] is True:
+            print('Generate only vocals and instrumental')
+            only_vocals = True
+
     model = None
     if 'large_gpu' in options:
         if options['large_gpu'] is True:
@@ -801,8 +841,18 @@ def predict_with_model(options):
         if len(audio.shape) == 1:
             audio = np.stack([audio, audio], axis=0)
         print("Input audio: {} Sample rate: {}".format(audio.shape, sr))
-        result, sample_rates = model.separate_music_file(audio.T, sr, update_percent_func, i, len(options['input_audio']))
-        for instrum in model.instruments:
+        result, sample_rates = model.separate_music_file(
+            audio.T,
+            sr,
+            update_percent_func,
+            i,
+            len(options['input_audio']),
+            only_vocals,
+        )
+        all_instrum = model.instruments
+        if only_vocals:
+            all_instrum = ['vocals']
+        for instrum in all_instrum:
             output_name = os.path.splitext(os.path.basename(input_audio))[0] + '_{}.wav'.format(instrum)
             sf.write(output_folder + '/' + output_name, result[instrum], sample_rates[instrum], subtype='FLOAT')
             print('File created: {}'.format(output_folder + '/' + output_name))
@@ -813,11 +863,12 @@ def predict_with_model(options):
         sf.write(output_folder + '/' + output_name, inst, sr, subtype='FLOAT')
         print('File created: {}'.format(output_folder + '/' + output_name))
 
-        # instrumental part 2
-        inst2 = result['bass'] + result['drums'] + result['other']
-        output_name = os.path.splitext(os.path.basename(input_audio))[0] + '_{}.wav'.format('instrum2')
-        sf.write(output_folder + '/' + output_name, inst2, sr, subtype='FLOAT')
-        print('File created: {}'.format(output_folder + '/' + output_name))
+        if not only_vocals:
+            # instrumental part 2
+            inst2 = result['bass'] + result['drums'] + result['other']
+            output_name = os.path.splitext(os.path.basename(input_audio))[0] + '_{}.wav'.format('instrum2')
+            sf.write(output_folder + '/' + output_name, inst2, sr, subtype='FLOAT')
+            print('File created: {}'.format(output_folder + '/' + output_name))
 
     if update_percent_func is not None:
         val = 100
@@ -835,6 +886,7 @@ def md5(fname):
 if __name__ == '__main__':
     start_time = time()
 
+    print("Version: {}".format(__VERSION__))
     m = argparse.ArgumentParser()
     m.add_argument("--input_audio", "-i", nargs='+', type=str, help="Input audio location. You can provide multiple files at once", required=True)
     m.add_argument("--output_folder", "-r", type=str, help="Output audio folder", required=True)
@@ -844,6 +896,8 @@ if __name__ == '__main__':
     m.add_argument("--single_onnx", action='store_true', help="Only use single ONNX model for vocals. Can be useful if you have not enough GPU memory.")
     m.add_argument("--chunk_size", "-cz", type=int, help="Chunk size for ONNX models. Set lower to reduce GPU memory consumption. Default: 1000000", required=False, default=1000000)
     m.add_argument("--large_gpu", action='store_true', help="It will store all models on GPU for faster processing of multiple audio files. Requires 11 and more GB of free GPU memory.")
+    m.add_argument("--use_kim_model_1", action='store_true', help="Use first version of Kim model (as it was on contest).")
+    m.add_argument("--only_vocals", action='store_true', help="Only create vocals and instrumental. Skip bass, drums, other")
 
     options = m.parse_args().__dict__
     print("Options: ".format(options))
