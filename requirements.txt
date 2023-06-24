@@ -8,3 +8,4 @@ demucs
 onnxruntime-gpu
 PyQt5
 gradio
+matplotlib

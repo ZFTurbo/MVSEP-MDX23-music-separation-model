@@ -1,69 +1,72 @@
 import os
 import time
-import soundfile as sf
 import numpy as np
 import tempfile
 from scipy.io import wavfile
-from pytube import YouTube
-from gradio import Interface, components as gr
-from moviepy.editor import AudioFileClip
+import gradio as gr
 from inference import EnsembleDemucsMDXMusicSeparationModel, predict_with_model
 import torch
+import librosa
+import librosa.display
+import matplotlib.pyplot as plt
+import asyncio
 
-def download_youtube_video_as_wav(youtube_url):
-    output_dir = "downloads"
-    os.makedirs(output_dir, exist_ok=True)
-    output_file = os.path.join(output_dir, "temp.mp4")
+# prevent connection from being closed after inference (windows Error)
+if os.name == 'nt':
+    # Change  event loop policy to SelectorEventLoop instead of the default ProactorEventLoop
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-    try:
-        yt = YouTube(youtube_url)
-        yt.streams.filter(only_audio=True).first().download(filename=output_file)
-        print("Download completed successfully.")
-    except Exception as e:
-        print(f"An error occurred while downloading the video: {e}")
-        return None
 
-    # Convert mp4 audio to wav
-    wav_file = os.path.join(output_dir, "mixture.wav")
-    clip = AudioFileClip(output_file)
-    clip.write_audiofile(wav_file)
-
-    return wav_file
-
+if torch.cuda.is_available():
+    print("CUDA is available!")
+else:
+    print("CUDA is not available.")
 
 def check_file_readiness(filepath):
+    # If the loop finished, it means the file size has not changed for 5 seconds
+    # which indicates that the file is ready
     num_same_size_checks = 0
     last_size = -1
-
     while num_same_size_checks < 5:
         current_size = os.path.getsize(filepath)
-
         if current_size == last_size:
             num_same_size_checks += 1
         else:
             num_same_size_checks = 0
             last_size = current_size
-
-        time.sleep(1)
-
-    # If the loop finished, it means the file size has not changed for 5 seconds
-    # which indicates that the file is ready
+        time.sleep(0.5)
     return True
 
+def generate_spectrogram(audio_file_path):
+    y, sr = librosa.load(audio_file_path)
+    plt.figure(figsize=(10, 4))
+    S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128, fmax=8000)
+    librosa.display.specshow(librosa.power_to_db(S, ref=np.max),
+                             y_axis='mel', fmax=22050, x_axis='time')
+    plt.colorbar(format='%+2.0f dB')
+    plt.title('Mel spectrogram')
+    plt.tight_layout()
+    image_path = tempfile.mktemp('.png')
+    plt.savefig(image_path)
+    plt.close()
+    return image_path
+
+def generate_spectrograms(audio_files):
+    output_spectrograms = []
+    for audio_file in audio_files:
+        output_spectrograms.append(generate_spectrogram(audio_file))
+    return tuple(output_spectrograms)
+
+def separate_music_file_wrapper(input_audio, use_cpu, use_single_onnx, large_overlap, small_overlap, chunk_size, use_large_gpu):
+    print(f"type(input_audio): {type(input_audio)}, input_audio: {input_audio[:10]}") # truncate printout
+    sample_rate, audio_data = input_audio
+    output_file = "input_audio.wav"
+    if isinstance(audio_data, np.ndarray):
+        audio_data = audio_data.astype(np.int16)
+    wavfile.write(output_file, sample_rate, audio_data)
 
 
-def separate_music_file_wrapper(input_string, use_cpu, use_single_onnx, large_overlap, small_overlap, chunk_size, use_large_gpu):
-    input_files = []
-
-    if input_string.startswith("https://www.youtube.com") or input_string.startswith("https://youtu.be"):
-        output_file = download_youtube_video_as_wav(input_string)
-        if output_file is not None:
-            input_files.append(output_file)
-    elif os.path.isdir(input_string):
-        input_directory = input_string
-        input_files = [os.path.join(input_directory, f) for f in os.listdir(input_directory) if f.endswith('.wav')]
-    else:
-        raise ValueError("Invalid input! Please provide a valid YouTube link or a directory path.")
+    input_files = [output_file]
 
     options = {
         'input_audio': input_files,
@@ -76,9 +79,10 @@ def separate_music_file_wrapper(input_string, use_cpu, use_single_onnx, large_ov
         'large_gpu': use_large_gpu,
     }
 
+    print(f'use_cpu: {use_cpu}, use_large_gpu: {use_large_gpu}')
     predict_with_model(options)
 
-    # Clear GPU cache
+    # Clear GPU cache once the separation finishes
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
@@ -92,7 +96,6 @@ def separate_music_file_wrapper(input_string, use_cpu, use_single_onnx, large_ov
         output_files["drums"] = os.path.join(options['output_folder'], audio_file_name + "_drums.wav")
         output_files["other"] = os.path.join(options['output_folder'], audio_file_name + "_other.wav")
 
-
     # Check the readiness of the files
     output_files_ready = []
     for k, v in output_files.items():
@@ -103,10 +106,15 @@ def separate_music_file_wrapper(input_string, use_cpu, use_single_onnx, large_ov
             empty_file = tempfile.mktemp('.wav')
             wavfile.write(empty_file, 44100, empty_data.astype(np.int16))  # Cast to int16 as wavfile does not support float32
             output_files_ready.append(empty_file)
+    
+    # Generate spectrograms right after separating the audio
+    output_spectrograms = generate_spectrograms(output_files_ready)
 
-    return tuple(output_files_ready)
+    #print(len(output_files_ready)) # should print 6
+    #print(len(output_spectrograms)) # should print 6
+    return tuple(output_files_ready) + output_spectrograms
 
-description = """
+separation_description = """
 # ZFTurbo Web-UI
 Web-UI by [Ma5onic](https://github.com/Ma5onic)
 ## Options:
@@ -118,26 +126,39 @@ Web-UI by [Ma5onic](https://github.com/Ma5onic)
 - **Use Fast Large GPU Version:** Select this to use the old fast method that requires > 11 GB of GPU memory. It will work faster.
 """
 
-iface = Interface(
-    fn=separate_music_file_wrapper,
-    inputs=[
-        gr.Text(label="Input Directory or YouTube Link"),
-        gr.Checkbox(label="Use CPU Only", value=False),
-        gr.Checkbox(label="Use Single ONNX", value=False),
-        gr.Number(label="Large Overlap", value=0.6),
-        gr.Number(label="Small Overlap", value=0.5),
-        gr.Number(label="Chunk Size", value=1000000),
-        gr.Checkbox(label="Use Fast Large GPU Version", value=False)
-    ],
-    outputs=[
-        gr.Audio(label="Vocals"),
-        gr.Audio(label="Instrumental"),
-        gr.Audio(label="Instrumental 2"),
-        gr.Audio(label="Bass"),
-        gr.Audio(label="Drums"),
-        gr.Audio(label="Other"),
-    ],
-    description=description,
+theme = gr.themes.Base(
+    primary_hue="cyan",
+    secondary_hue="cyan",
 )
 
-iface.queue().launch(debug=True, share=False)
+with gr.Blocks(theme=theme) as demo:
+    gr.Markdown(separation_description)
+    input_audio = gr.Audio(label="Upload Audio", interactive=True)
+    use_cpu = gr.Checkbox(label="Use CPU Only", value=False)
+    use_single_onnx = gr.Checkbox(label="Use Single ONNX", value=False)
+    large_overlap = gr.Number(label="Large Overlap", value=0.6)
+    small_overlap = gr.Number(label="Small Overlap", value=0.5)
+    chunk_size = gr.Number(label="Chunk Size", value=1000000)
+    use_large_gpu = gr.Checkbox(label="Use Fast Large GPU Version", value=False)    
+    process_button = gr.Button("Process Audio")
+
+    vocals = gr.Audio(label="Vocals")
+    vocals_spectrogram = gr.Image(label="Vocals Spectrogram")
+    instrumental = gr.Audio(label="Instrumental")
+    instrumental_spectrogram = gr.Image(label="Instrumental Spectrogram")
+    instrumental2 = gr.Audio(label="Instrumental 2")
+    instrumental2_spectrogram = gr.Image(label="Instrumental 2 Spectrogram")
+    bass = gr.Audio(label="Bass")
+    bass_spectrogram = gr.Image(label="Bass Spectrogram")
+    drums = gr.Audio(label="Drums")
+    drums_spectrogram = gr.Image(label="Drums Spectrogram")
+    other = gr.Audio(label="Other")
+    other_spectrogram = gr.Image(label="Other Spectrogram")
+    
+    process_button.click(
+        separate_music_file_wrapper,
+        inputs=[input_audio, use_cpu, use_single_onnx, large_overlap, small_overlap, chunk_size, use_large_gpu],
+        outputs=[vocals, instrumental, instrumental2, bass, drums, other, vocals_spectrogram, instrumental_spectrogram, instrumental2_spectrogram, bass_spectrogram, drums_spectrogram, other_spectrogram],
+    )
+
+demo.queue().launch(debug=True, share=False)

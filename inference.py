@@ -128,16 +128,17 @@ def demix_base(mix, device, models, infer_session):
             waves = np.array(mix_p[:, i:i + model.chunk_size])
             mix_waves.append(waves)
             i += gen_size
+        mix_waves = np.array(mix_waves)  # Convert the list to a single numpy.ndarray
         mix_waves = torch.tensor(mix_waves, dtype=torch.float32).to(device)
 
-        with torch.no_grad():
-            _ort = infer_session
-            stft_res = model.stft(mix_waves)
-            res = _ort.run(None, {'input': stft_res.cpu().numpy()})[0]
-            ten = torch.tensor(res)
-            tar_waves = model.istft(ten.to(device))
-            tar_waves = tar_waves.cpu()
-            tar_signal = tar_waves[:, :, trim:-trim].transpose(0, 1).reshape(2, -1).numpy()[:, :-pad]
+    with torch.no_grad():
+        _ort = infer_session
+        stft_res = model.stft(mix_waves)
+        res = _ort.run(None, {'input': stft_res.cpu().numpy()})[0]
+        ten = torch.tensor(res).to(device)  # Move result tensor to device
+        tar_waves = model.istft(ten)  # This operation is performed on the GPU
+        tar_waves = tar_waves.cpu()  # Move the result back to CPU only after all computations
+        tar_signal = tar_waves[:, :, trim:-trim].transpose(0, 1).reshape(2, -1).numpy()[:, :-pad]
 
         sources.append(tar_signal)
     # print('Time demix base: {:.2f} sec'.format(time() - start_time))
@@ -170,9 +171,6 @@ def demix_full(mix, device, chunk_size, models, infer_session, overlap=0.75):
 
 
 class EnsembleDemucsMDXMusicSeparationModel:
-    """
-    Doesn't do any separation just passes the input back as output
-    """
     def __init__(self, options):
         """
             options - user options
@@ -475,10 +473,6 @@ class EnsembleDemucsMDXMusicSeparationModel:
 
 
 class EnsembleDemucsMDXMusicSeparationModelLowGPU:
-    """
-    Doesn't do any separation just passes the input back as output
-    """
-
     def __init__(self, options):
         """
             options - user options
