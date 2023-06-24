@@ -50,6 +50,19 @@ Quality comparison with best separation models performed on [MultiSong Dataset](
 * GUI supports Drag & Drop of multiple files.
 * Progress bar available.
 
+## Web Interface
+executing `web-ui.py` with python will start the web interface locally on `localhost` (127.0.0.1).
+You'll see what port it is running on within the terminal output.
+
+![image](https://github.com/Ma5onic/MVSEP-MDX23-music-separation-model/assets/18509613/ae7130a5-60a4-4095-abbd-5290e84dcf7c)
+
+* Browser-Based user interface
+* Program will download all needed neural net models from internet at the first run.
+* supports Drag & Drop for audio upload (single file)
+
+![Web-UI Window](https://github.com/ZFTurbo/MVSEP-MDX23-music-separation-model/assets/18509613/4872f6aa-5896-44e9-8885-eaee1de3f4ee)
+
+
 ## Changes
 
 ### v1.0.1
