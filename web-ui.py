@@ -1,3 +1,5 @@
+# This script is licensed under the "GNU Affero General Public License v3.0"
+# See https://choosealicense.com/licenses/agpl-3.0/ for details.
 import os
 import time
 import numpy as np
@@ -115,15 +117,21 @@ def separate_music_file_wrapper(input_audio, use_cpu, use_single_onnx, large_ove
     return tuple(output_files_ready) + output_spectrograms
 
 separation_description = """
-# ZFTurbo Web-UI
-Web-UI by [Ma5onic](https://github.com/Ma5onic)
+# MVSEP-MDX23 Web-UI
+Web-UI created by [Ma5onic](https://github.com/Ma5onic)
+
+Models created by [KimberleyJensen](https://github.com/KimberleyJensen) & [Alexandre Défossez](https://github.com/adefossez)
+
+Separation method created by [ZFTurbo](https://github.com/ZFTurbo)
+- Further reading: [Benchmarks and leaderboards for sound demixing tasks - arxiv paper](https://arxiv.org/abs/2305.07489)
+
 ## Options:
 - **Use CPU Only:** Select this if you have not enough GPU memory. It will be slower.
-- **Use Single ONNX:** Select this to use a single ONNX model. It will decrease quality a little bit but can help with GPU memory usage.
+- **Use Single ONNX:** Select this to use a single ONNX model. It will decrease quality but can help with GPU memory usage.
 - **Large Overlap:** The overlap for large chunks. Adjust as needed.
 - **Small Overlap:** The overlap for small chunks. Adjust as needed.
 - **Chunk Size:** The size of chunks to be processed at a time. Reduce this if facing memory issues.
-- **Use Fast Large GPU Version:** Select this to use the old fast method that requires > 11 GB of GPU memory. It will work faster.
+- **Use Fast Large GPU Version:** Select this for best separation results (requires > 11 GB of GPU memory).
 """
 
 theme = gr.themes.Base(
@@ -139,8 +147,8 @@ with gr.Blocks(theme=theme) as demo:
     large_overlap = gr.Number(label="Large Overlap", value=0.6)
     small_overlap = gr.Number(label="Small Overlap", value=0.5)
     chunk_size = gr.Number(label="Chunk Size", value=1000000)
-    use_large_gpu = gr.Checkbox(label="Use Fast Large GPU Version", value=False)    
-    process_button = gr.Button("Process Audio")
+    use_large_gpu = gr.Checkbox(label="Large GPU Version (Generates better results but requires GPU RAM above 11Gb)", value=True)
+    process_button = gr.Button("Process Audio", variant="primary")
 
     vocals = gr.Audio(label="Vocals")
     vocals_spectrogram = gr.Image(label="Vocals Spectrogram")
