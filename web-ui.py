@@ -122,7 +122,7 @@ Web-UI created by [Ma5onic](https://github.com/Ma5onic)
 
 Models created by [KimberleyJensen](https://github.com/KimberleyJensen) & [Alexandre Défossez](https://github.com/adefossez)
 
-Separation method created by [ZFTurbo](https://github.com/ZFTurbo)
+Separation method created by [ZFTurbo](https://github.com/ZFTurbo) and [MVSep.cpm](https://mvsep.com/)
 - Further reading: [Benchmarks and leaderboards for sound demixing tasks - arxiv paper](https://arxiv.org/abs/2305.07489)
 
 ## Options:
@@ -139,7 +139,7 @@ theme = gr.themes.Base(
     secondary_hue="cyan",
 )
 
-with gr.Blocks(theme=theme) as demo:
+with gr.Blocks(theme=theme, title="MVSEP MDX23 music separation model") as demo:
     gr.Markdown(separation_description)
     input_audio = gr.Audio(label="Upload Audio", interactive=True)
     use_cpu = gr.Checkbox(label="Use CPU Only", value=False)
