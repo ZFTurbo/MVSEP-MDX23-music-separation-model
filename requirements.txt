@@ -7,5 +7,5 @@ librosa
 demucs
 onnxruntime-gpu
 PyQt5
-gradio
+gradio==3.27.0
 matplotlib
