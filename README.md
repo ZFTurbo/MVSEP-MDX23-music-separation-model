@@ -84,4 +84,16 @@ You'll see what port it is running on within the terminal output.
       archivePrefix={arXiv},
       primaryClass={cs.SD}
 }
+
+@article{fabbro2024sound,
+    title={The Sound Demixing Challenge 2023-Music Demixing Track.},
+    author={Fabbro, G., Uhlich, S., Lai, C.-H., Choi, W., Martínez-Ramírez, M., Liao, W., Gadelha, I., Ramos, G., Hsu, E., Rodrigues, H., Stöter, F.-R.,
+    Défossez, A., Luo, Y., Yu, J., Chakraborty, D., Mohanty, S., Solovyev, R., Stempkovskiy, A., Habruseva, T., Goswami, N., Harada, T., Kim, M.,
+    Lee, J. H., Dong, Y., Zhang, X., Liu, J., & Mitsufuji, Y},
+    journal={Trans. Int. Soc. Music. Inf. Retr.},
+    volume={7},
+    number={1},
+    pages={63--84},
+    year={2024}
+}
 ```
