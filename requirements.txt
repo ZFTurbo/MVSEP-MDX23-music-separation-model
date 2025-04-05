@@ -1,7 +1,7 @@
 numpy
 soundfile
 scipy
-torch>=1.8.1
+torch<2.6
 tqdm
 librosa
 demucs
